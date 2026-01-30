@@ -1,19 +1,27 @@
+import os
 import nltk
 import string
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-# ---------------- ENSURE NLTK DATA (SAFE FOR CLOUD) ----------------
-def ensure_nltk_resources():
-    try:
-        nltk.data.find("corpora/stopwords")
-    except LookupError:
-        nltk.download("stopwords")
+# ---------------- STREAMLIT CLOUD SAFE NLTK SETUP ----------------
 
-    try:
-        nltk.data.find("corpora/wordnet")
-    except LookupError:
-        nltk.download("wordnet")
+# Force NLTK data to a writable directory
+NLTK_DATA_DIR = os.path.join(os.path.expanduser("~"), "nltk_data")
+os.makedirs(NLTK_DATA_DIR, exist_ok=True)
+nltk.data.path.append(NLTK_DATA_DIR)
+
+def ensure_nltk_resources():
+    resources = [
+        ("corpora/stopwords", "stopwords"),
+        ("corpora/wordnet", "wordnet"),
+    ]
+
+    for path, name in resources:
+        try:
+            nltk.data.find(path)
+        except LookupError:
+            nltk.download(name, download_dir=NLTK_DATA_DIR, quiet=True)
 
 ensure_nltk_resources()
 

@@ -1,15 +1,17 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import nltk
-nltk.download('stopwords')
-nltk.download('wordnet')
-
 
 from preprocess import preprocess_text
 from scorecard_pdf_extractor import extract_scorecard_rows
 
-# ---------------- LOAD ML MODEL ----------------
+# ---------------- PAGE CONFIG ----------------
+st.set_page_config(
+    page_title="Exam Difficulty Analyzer",
+    layout="centered"
+)
+
+# ---------------- LOAD MODEL (CACHED) ----------------
 @st.cache_resource
 def load_model():
     with open("model/difficulty_model.pkl", "rb") as f:
@@ -18,7 +20,7 @@ def load_model():
 model = load_model()
 
 # ---------------- APP TITLE ----------------
-st.title("Exam Difficulty Analyzer")
+st.title("📘 Exam Difficulty Analyzer")
 
 # ---------------- MODE SELECTION ----------------
 mode = st.radio(
@@ -26,32 +28,30 @@ mode = st.radio(
     ("Question-Based Difficulty", "Scorecard-Based Exam Difficulty")
 )
 
-
-# 🧠 QUESTION-BASED DIFFICULTY (ML)
-
+# ==================================================
+# 🧠 QUESTION-BASED DIFFICULTY
+# ==================================================
 if mode == "Question-Based Difficulty":
 
-    st.subheader("📝 Question-Based Difficulty (Machine Learning Model)")
+    st.subheader("🧠 Question-Based Difficulty (ML)")
 
     question = st.text_area(
         "Enter an exam question",
-        placeholder="e.g. Analyze the time complexity of merge sort"
+        placeholder="e.g. Analyze deadlock prevention techniques"
     )
 
-    if st.button("Analyze Question Difficulty"):
-        if question.strip() == "":
+    if st.button("Analyze Difficulty"):
+        if not question.strip():
             st.warning("Please enter a question.")
         else:
             processed = preprocess_text(question)
             prediction = model.predict([processed])[0]
-
-            st.success(f"🧠 Predicted Difficulty: **{prediction}**")
+            st.success(f"Predicted Difficulty: **{prediction}**")
 
 # ==================================================
 # 📊 SCORECARD-BASED EXAM DIFFICULTY
 # ==================================================
-elif mode == "Scorecard-Based Exam Difficulty":
-
+else:
     st.subheader("📊 Scorecard-Based Exam Difficulty")
 
     uploaded_files = st.file_uploader(
@@ -60,7 +60,7 @@ elif mode == "Scorecard-Based Exam Difficulty":
         accept_multiple_files=True
     )
 
-    if uploaded_files and len(uploaded_files) > 0:
+    if uploaded_files:
         all_rows = []
 
         for idx, pdf in enumerate(uploaded_files):
@@ -70,24 +70,22 @@ elif mode == "Scorecard-Based Exam Difficulty":
             if df_pdf is not None and not df_pdf.empty:
                 all_rows.append(df_pdf)
 
-        if len(all_rows) == 0:
-            st.error("No subject marks could be extracted from the uploaded PDFs.")
+        if not all_rows:
+            st.error("No marks could be extracted from the uploaded PDFs.")
         else:
             combined_df = pd.concat(all_rows, ignore_index=True)
 
-            st.subheader("📄 Extracted Subject Marks (All Students)")
+            st.subheader("📄 Extracted Subject Marks")
             st.dataframe(combined_df)
 
             st.subheader("📊 Subject-wise Difficulty")
-
             subject_difficulties = []
 
             for subject, group in combined_df.groupby("subject"):
                 scores = group["marks"]
-
                 avg = scores.mean()
                 pass_rate = (scores >= 40).mean() * 100
-                std_dev = scores.std()
+                std_dev = scores.std() if len(scores) > 1 else 0
 
                 if avg >= 70 and pass_rate >= 80:
                     difficulty = "Easy"
@@ -100,12 +98,9 @@ elif mode == "Scorecard-Based Exam Difficulty":
 
                 st.write(
                     f"**{subject}** → {difficulty} | "
-                    f"Avg: {avg:.2f} | "
-                    f"Pass: {pass_rate:.1f}% | "
-                    f"Std Dev: {std_dev:.2f}"
+                    f"Avg: {avg:.2f} | Pass: {pass_rate:.1f}% | Std: {std_dev:.2f}"
                 )
 
-            # -------- OVERALL EXAM DIFFICULTY --------
             st.subheader("📝 Overall Exam Difficulty")
 
             if subject_difficulties.count("Difficult") >= subject_difficulties.count("Easy"):
@@ -115,4 +110,4 @@ elif mode == "Scorecard-Based Exam Difficulty":
             else:
                 exam_difficulty = "Moderate"
 
-            st.success(f"🎯 Final Exam Difficulty: **{exam_difficulty}**")
+            st.success(f"Final Exam Difficulty: **{exam_difficulty}**")
